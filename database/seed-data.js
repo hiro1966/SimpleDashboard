@@ -1,4 +1,5 @@
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -6,9 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const dbPath = path.join(__dirname, 'dashboard.db');
-const db = new Database(dbPath);
 
 console.log('サンプルデータ生成を開始します...');
+
+// データベースファイルを読み込み
+const fileBuffer = fs.readFileSync(dbPath);
+const SQL = await initSqlJs();
+const db = new SQL.Database(fileBuffer);
 
 // 日付生成ヘルパー（今日から過去730日分 = 2年分）
 function generateDates(days = 730) {
@@ -48,17 +53,7 @@ const billingTypes = [
 
 // 外来データ生成
 console.log('外来データを生成中...');
-const insertOutpatient = db.prepare(
-    'INSERT INTO outpatient_daily (date, ka_code, first_visit_count, revisit_count) VALUES (?, ?, ?, ?)'
-);
-
-const insertOutpatientMany = db.transaction((records) => {
-    for (const record of records) {
-        insertOutpatient.run(record.date, record.ka_code, record.first_visit_count, record.revisit_count);
-    }
-});
-
-const outpatientRecords = [];
+let outpatientCount = 0;
 for (const date of dates) {
     const seasonal = getSeasonalFactor(date);
     for (const kaCode of kaCodes) {
@@ -69,30 +64,17 @@ for (const date of dates) {
         const firstVisit = Math.round(randomInt(baseFirst - 5, baseFirst + 5) * seasonal);
         const revisit = Math.round(randomInt(baseRevisit - 10, baseRevisit + 10) * seasonal);
         
-        outpatientRecords.push({
-            date,
-            ka_code: kaCode,
-            first_visit_count: Math.max(0, firstVisit),
-            revisit_count: Math.max(0, revisit)
-        });
+        db.run(
+            'INSERT INTO outpatient_daily (date, ka_code, first_visit_count, revisit_count) VALUES (?, ?, ?, ?)',
+            [date, kaCode, Math.max(0, firstVisit), Math.max(0, revisit)]
+        );
+        outpatientCount++;
     }
 }
-insertOutpatientMany(outpatientRecords);
-console.log(`外来データ${outpatientRecords.length}件を登録しました`);
+console.log(`外来データ${outpatientCount}件を登録しました`);
 
 // 入院データ生成
 console.log('入院データを生成中...');
-const insertInpatient = db.prepare(
-    'INSERT INTO inpatient_daily (date, ward_code, patient_count) VALUES (?, ?, ?)'
-);
-
-const insertInpatientMany = db.transaction((records) => {
-    for (const record of records) {
-        insertInpatient.run(record.date, record.ward_code, record.patient_count);
-    }
-});
-
-// 病棟の病床数を取得
 const wardCapacity = {
     101: 50,
     102: 45,
@@ -100,7 +82,7 @@ const wardCapacity = {
     201: 10
 };
 
-const inpatientRecords = [];
+let inpatientCount = 0;
 for (const date of dates) {
     const seasonal = getSeasonalFactor(date);
     for (const wardCode of wardCodes) {
@@ -109,29 +91,18 @@ for (const date of dates) {
         const occupancyRate = 0.70 + Math.random() * 0.25;
         const patientCount = Math.round(capacity * occupancyRate * seasonal);
         
-        inpatientRecords.push({
-            date,
-            ward_code: wardCode,
-            patient_count: Math.min(capacity, Math.max(0, patientCount))
-        });
+        db.run(
+            'INSERT INTO inpatient_daily (date, ward_code, patient_count) VALUES (?, ?, ?)',
+            [date, wardCode, Math.min(capacity, Math.max(0, patientCount))]
+        );
+        inpatientCount++;
     }
 }
-insertInpatientMany(inpatientRecords);
-console.log(`入院データ${inpatientRecords.length}件を登録しました`);
+console.log(`入院データ${inpatientCount}件を登録しました`);
 
 // 算定種データ生成
 console.log('算定種データを生成中...');
-const insertBilling = db.prepare(
-    'INSERT INTO billing_daily (date, billing_type, count) VALUES (?, ?, ?)'
-);
-
-const insertBillingMany = db.transaction((records) => {
-    for (const record of records) {
-        insertBilling.run(record.date, record.billing_type, record.count);
-    }
-});
-
-const billingRecords = [];
+let billingCount = 0;
 for (const date of dates) {
     const seasonal = getSeasonalFactor(date);
     for (const billingType of billingTypes) {
@@ -143,15 +114,19 @@ for (const date of dates) {
         
         const count = Math.round(randomInt(baseCount - 3, baseCount + 3) * seasonal);
         
-        billingRecords.push({
-            date,
-            billing_type: billingType,
-            count: Math.max(0, count)
-        });
+        db.run(
+            'INSERT INTO billing_daily (date, billing_type, count) VALUES (?, ?, ?)',
+            [date, billingType, Math.max(0, count)]
+        );
+        billingCount++;
     }
 }
-insertBillingMany(billingRecords);
-console.log(`算定種データ${billingRecords.length}件を登録しました`);
+console.log(`算定種データ${billingCount}件を登録しました`);
+
+// データベースをファイルに保存
+const data = db.export();
+const buffer = Buffer.from(data);
+fs.writeFileSync(dbPath, buffer);
 
 db.close();
 console.log('サンプルデータ生成が完了しました');

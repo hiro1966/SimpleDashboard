@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,13 +17,14 @@ if (fs.existsSync(dbPath)) {
     console.log('既存のデータベースを削除しました');
 }
 
-// 新しいDBを作成
-const db = new Database(dbPath);
+// SQL.jsを初期化
+const SQL = await initSqlJs();
+const db = new SQL.Database();
 console.log('新しいデータベースを作成しました');
 
 // スキーマを読み込んで実行
 const schema = fs.readFileSync(schemaPath, 'utf8');
-db.exec(schema);
+db.run(schema);
 console.log('スキーマを適用しました');
 
 // 診療科マスタの初期データ
@@ -38,12 +39,11 @@ const kaMasterData = [
     { ka_name: '産婦人科', ka_code: 8, seq: 8, valid: 0 }  // 無効な例
 ];
 
-const insertKa = db.prepare(
-    'INSERT INTO ka_master (ka_name, ka_code, seq, valid) VALUES (?, ?, ?, ?)'
-);
-
 for (const ka of kaMasterData) {
-    insertKa.run(ka.ka_name, ka.ka_code, ka.seq, ka.valid);
+    db.run(
+        'INSERT INTO ka_master (ka_name, ka_code, seq, valid) VALUES (?, ?, ?, ?)',
+        [ka.ka_name, ka.ka_code, ka.seq, ka.valid]
+    );
 }
 console.log(`診療科マスタに${kaMasterData.length}件登録しました`);
 
@@ -56,14 +56,18 @@ const wardMasterData = [
     { ward_name: '4病棟', ward_code: 104, seq: 5, bed_count: 30, valid: 0 }  // 無効な例
 ];
 
-const insertWard = db.prepare(
-    'INSERT INTO ward_master (ward_name, ward_code, seq, bed_count, valid) VALUES (?, ?, ?, ?, ?)'
-);
-
 for (const ward of wardMasterData) {
-    insertWard.run(ward.ward_name, ward.ward_code, ward.seq, ward.bed_count, ward.valid);
+    db.run(
+        'INSERT INTO ward_master (ward_name, ward_code, seq, bed_count, valid) VALUES (?, ?, ?, ?, ?)',
+        [ward.ward_name, ward.ward_code, ward.seq, ward.bed_count, ward.valid]
+    );
 }
 console.log(`病棟マスタに${wardMasterData.length}件登録しました`);
+
+// データベースをファイルに保存
+const data = db.export();
+const buffer = Buffer.from(data);
+fs.writeFileSync(dbPath, buffer);
 
 db.close();
 console.log('データベース初期化が完了しました');

@@ -1,6 +1,7 @@
 import { createYoga, createSchema } from 'graphql-yoga';
 import { createServer } from 'http';
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,7 +9,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const dbPath = path.join(__dirname, '../database/dashboard.db');
-const db = new Database(dbPath);
+
+// データベース初期化
+let db;
+const SQL = await initSqlJs();
+const fileBuffer = fs.readFileSync(dbPath);
+db = new SQL.Database(fileBuffer);
+
+// データベースヘルパー関数
+function query(sql, params = []) {
+    try {
+        const stmt = db.prepare(sql);
+        stmt.bind(params);
+        const results = [];
+        while (stmt.step()) {
+            const row = stmt.getAsObject();
+            results.push(row);
+        }
+        stmt.free();
+        return results;
+    } catch (error) {
+        console.error('Query error:', error);
+        throw error;
+    }
+}
 
 // GraphQLスキーマ定義
 const typeDefs = `
@@ -116,8 +140,8 @@ const resolvers = {
   Query: {
     // 有効な診療科マスタ取得
     validKaMasters: () => {
-      const stmt = db.prepare('SELECT * FROM ka_master WHERE valid = 1 ORDER BY seq');
-      return stmt.all().map(row => ({
+      const rows = query('SELECT * FROM ka_master WHERE valid = 1 ORDER BY seq');
+      return rows.map(row => ({
         id: row.id,
         kaName: row.ka_name,
         kaCode: row.ka_code,
@@ -128,8 +152,8 @@ const resolvers = {
 
     // 有効な病棟マスタ取得
     validWardMasters: () => {
-      const stmt = db.prepare('SELECT * FROM ward_master WHERE valid = 1 ORDER BY seq');
-      return stmt.all().map(row => ({
+      const rows = query('SELECT * FROM ward_master WHERE valid = 1 ORDER BY seq');
+      return rows.map(row => ({
         id: row.id,
         wardName: row.ward_name,
         wardCode: row.ward_code,
@@ -141,18 +165,18 @@ const resolvers = {
 
     // 全算定種別取得
     allBillingTypes: () => {
-      const stmt = db.prepare('SELECT DISTINCT billing_type FROM billing_daily ORDER BY billing_type');
-      return stmt.all().map(row => row.billing_type);
+      const rows = query('SELECT DISTINCT billing_type FROM billing_daily ORDER BY billing_type');
+      return rows.map(row => row.billing_type);
     },
 
     // 外来データ取得
     outpatientData: (_, { dateRange, kaCode, aggregation = 'daily' }) => {
-      let query;
+      let sql;
       let params = [dateRange.startDate, dateRange.endDate];
 
       if (aggregation === 'monthly') {
         if (kaCode) {
-          query = `
+          sql = `
             SELECT 
               strftime('%Y-%m', date) as month,
               ka_code,
@@ -165,7 +189,7 @@ const resolvers = {
           `;
           params.push(kaCode);
         } else {
-          query = `
+          sql = `
             SELECT 
               strftime('%Y-%m', date) as month,
               SUM(first_visit_count) as first_visit_count,
@@ -178,7 +202,7 @@ const resolvers = {
         }
       } else {
         if (kaCode) {
-          query = `
+          sql = `
             SELECT date, ka_code, first_visit_count, revisit_count
             FROM outpatient_daily
             WHERE date BETWEEN ? AND ? AND ka_code = ?
@@ -186,7 +210,7 @@ const resolvers = {
           `;
           params.push(kaCode);
         } else {
-          query = `
+          sql = `
             SELECT 
               date,
               SUM(first_visit_count) as first_visit_count,
@@ -199,8 +223,7 @@ const resolvers = {
         }
       }
 
-      const stmt = db.prepare(query);
-      const rows = stmt.all(...params);
+      const rows = query(sql, params);
 
       return rows.map(row => ({
         date: row.month || row.date,
@@ -214,12 +237,12 @@ const resolvers = {
 
     // 入院データ取得
     inpatientData: (_, { dateRange, wardCode, aggregation = 'daily' }) => {
-      let query;
+      let sql;
       let params = [dateRange.startDate, dateRange.endDate];
 
       if (aggregation === 'monthly') {
         if (wardCode) {
-          query = `
+          sql = `
             SELECT 
               strftime('%Y-%m', date) as month,
               ward_code,
@@ -231,7 +254,7 @@ const resolvers = {
           `;
           params.push(wardCode);
         } else {
-          query = `
+          sql = `
             SELECT 
               strftime('%Y-%m', date) as month,
               CAST(AVG(patient_count) AS INTEGER) as patient_count
@@ -243,7 +266,7 @@ const resolvers = {
         }
       } else {
         if (wardCode) {
-          query = `
+          sql = `
             SELECT date, ward_code, patient_count
             FROM inpatient_daily
             WHERE date BETWEEN ? AND ? AND ward_code = ?
@@ -251,7 +274,7 @@ const resolvers = {
           `;
           params.push(wardCode);
         } else {
-          query = `
+          sql = `
             SELECT 
               date,
               SUM(patient_count) as patient_count
@@ -263,8 +286,7 @@ const resolvers = {
         }
       }
 
-      const stmt = db.prepare(query);
-      const rows = stmt.all(...params);
+      const rows = query(sql, params);
 
       return rows.map(row => {
         const result = {
@@ -277,11 +299,10 @@ const resolvers = {
         };
 
         if (row.ward_code) {
-          const wardStmt = db.prepare('SELECT bed_count FROM ward_master WHERE ward_code = ?');
-          const ward = wardStmt.get(row.ward_code);
-          if (ward) {
-            result.bedCount = ward.bed_count;
-            result.occupancyRate = (row.patient_count / ward.bed_count) * 100;
+          const wardRows = query('SELECT bed_count FROM ward_master WHERE ward_code = ?', [row.ward_code]);
+          if (wardRows.length > 0) {
+            result.bedCount = wardRows[0].bed_count;
+            result.occupancyRate = (row.patient_count / wardRows[0].bed_count) * 100;
           }
         }
 
@@ -291,11 +312,11 @@ const resolvers = {
 
     // 算定種データ取得
     billingData: (_, { dateRange, billingType, aggregation = 'daily' }) => {
-      let query;
+      let sql;
       const params = [dateRange.startDate, dateRange.endDate, billingType];
 
       if (aggregation === 'monthly') {
-        query = `
+        sql = `
           SELECT 
             strftime('%Y-%m', date) as month,
             billing_type,
@@ -306,7 +327,7 @@ const resolvers = {
           ORDER BY month
         `;
       } else {
-        query = `
+        sql = `
           SELECT date, billing_type, count
           FROM billing_daily
           WHERE date BETWEEN ? AND ? AND billing_type = ?
@@ -314,8 +335,7 @@ const resolvers = {
         `;
       }
 
-      const stmt = db.prepare(query);
-      const rows = stmt.all(...params);
+      const rows = query(sql, params);
 
       return rows.map(row => ({
         date: row.month || row.date,

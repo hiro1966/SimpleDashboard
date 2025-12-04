@@ -19,7 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "@apollo/client": "^3.8.8",
-    "better-sqlite3": "^9.2.2",
+    "sql.js": "^1.10.3",
     "chart.js": "^4.4.1",
     "graphql": "^16.8.1",
     "graphql-yoga": "^5.1.1",

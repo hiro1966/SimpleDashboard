@@ -31,6 +31,8 @@
 - **Node.js**: v18以上
 - **ブラウザ**: Microsoft Edge または Google Chrome
 
+> **注意**: このシステムは`sql.js`（Pure JavaScript SQLite実装）を使用しているため、PythonやVisual Studio Build Toolsのインストールは不要です。
+
 ## 🚀 セットアップ手順
 
 ### 1. 依存パッケージのインストール
@@ -38,6 +40,8 @@
 ```bash
 npm install
 ```
+
+インストールエラーが発生しないことを確認してください。`sql.js`はネイティブコンパイル不要のため、Windows環境でも問題なくインストールできます。
 
 ### 2. データベース初期化
 
@@ -193,13 +197,18 @@ query {
 
 ### サーバーサイド
 - **GraphQL Yoga 5**: GraphQLサーバー
-- **better-sqlite3**: SQLiteデータベース
+- **sql.js**: Pure JavaScript SQLiteデータベース（ネイティブコンパイル不要）
 - **Node.js**: ランタイム環境
 
 ### クライアントサイド
 - **Apollo Client 3**: GraphQLクライアント
 - **Chart.js 4**: グラフ描画ライブラリ
 - **js-yaml**: YAML設定ファイル解析
+
+### Windows環境での利点
+- **ビルドツール不要**: Python、Visual Studio Build Toolsのインストールが不要
+- **簡単インストール**: `npm install`だけで完了
+- **完全オフライン**: インターネット接続不要で動作
 
 ## 📝 カスタマイズ
 
