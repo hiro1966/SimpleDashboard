@@ -8,7 +8,9 @@
     "client": "node server/static-server.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "init-db": "node database/init-db.js",
-    "seed-data": "node database/seed-data.js"
+    "seed-data": "node database/seed-data.js",
+    "setup-libs": "node scripts/setup-libs.js",
+    "postinstall": "npm run setup-libs"
   },
   "keywords": [
     "dashboard",
@@ -18,12 +20,11 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@apollo/client": "^3.8.8",
-    "sql.js": "^1.10.3",
-    "chart.js": "^4.4.1",
+    "chart.js": "^4.5.1",
     "graphql": "^16.8.1",
     "graphql-yoga": "^5.1.1",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.1",
+    "sql.js": "^1.10.3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
