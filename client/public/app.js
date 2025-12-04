@@ -1,12 +1,26 @@
-// Apollo Client設定
-const { ApolloClient, InMemoryCache, gql, HttpLink } = window.apolloClient;
+// GraphQL クライアント設定（fetchベース）
+const GRAPHQL_URL = 'http://localhost:4000/graphql';
 
-const client = new ApolloClient({
-    link: new HttpLink({
-        uri: 'http://localhost:4000/graphql',
-    }),
-    cache: new InMemoryCache()
-});
+// GraphQLクエリを実行するヘルパー関数
+async function graphqlQuery(query, variables = {}) {
+    const response = await fetch(GRAPHQL_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            query,
+            variables
+        })
+    });
+    
+    const result = await response.json();
+    if (result.errors) {
+        console.error('GraphQL Errors:', result.errors);
+        throw new Error(result.errors[0].message);
+    }
+    return result.data;
+}
 
 // グローバル状態管理
 const state = {
@@ -29,24 +43,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 // マスタデータ読み込み
 async function loadMasterData() {
     try {
-        const { data } = await client.query({
-            query: gql`
-                query {
-                    validKaMasters {
-                        kaCode
-                        kaName
-                        seq
-                    }
-                    validWardMasters {
-                        wardCode
-                        wardName
-                        seq
-                    }
-                    allBillingTypes
+        const query = `
+            query {
+                validKaMasters {
+                    kaCode
+                    kaName
+                    seq
                 }
-            `
-        });
-
+                validWardMasters {
+                    wardCode
+                    wardName
+                    seq
+                }
+                allBillingTypes
+            }
+        `;
+        
+        const data = await graphqlQuery(query);
+        
         state.kaMasters = data.validKaMasters;
         state.wardMasters = data.validWardMasters;
         state.billingTypes = data.allBillingTypes;
@@ -56,6 +70,7 @@ async function loadMasterData() {
         populateBillingTypeSelect();
     } catch (error) {
         console.error('マスタデータ読み込みエラー:', error);
+        alert('マスタデータの読み込みに失敗しました。サーバーが起動していることを確認してください。');
     }
 }
 
@@ -242,7 +257,7 @@ async function renderGraph(position, config) {
 
 // 外来データ取得
 async function fetchOutpatientData(config) {
-    const query = gql`
+    const query = `
         query GetOutpatientData($dateRange: DateRangeInput!, $kaCode: Int, $aggregation: String) {
             current: outpatientData(dateRange: $dateRange, kaCode: $kaCode, aggregation: $aggregation) {
                 date
@@ -261,16 +276,13 @@ async function fetchOutpatientData(config) {
         }
     `;
 
-    const { data } = await client.query({
-        query,
-        variables: {
-            dateRange: {
-                startDate: config.startDate,
-                endDate: config.endDate
-            },
-            kaCode: config.kaCode,
-            aggregation: config.aggregation
-        }
+    const data = await graphqlQuery(query, {
+        dateRange: {
+            startDate: config.startDate,
+            endDate: config.endDate
+        },
+        kaCode: config.kaCode,
+        aggregation: config.aggregation
     });
 
     const labels = data.current.map(d => d.date);
@@ -349,7 +361,7 @@ async function fetchOutpatientData(config) {
 
 // 入院データ取得
 async function fetchInpatientData(config) {
-    const query = gql`
+    const query = `
         query GetInpatientData($dateRange: DateRangeInput!, $wardCode: Int, $aggregation: String) {
             current: inpatientData(dateRange: $dateRange, wardCode: $wardCode, aggregation: $aggregation) {
                 date
@@ -364,16 +376,13 @@ async function fetchInpatientData(config) {
         }
     `;
 
-    const { data } = await client.query({
-        query,
-        variables: {
-            dateRange: {
-                startDate: config.startDate,
-                endDate: config.endDate
-            },
-            wardCode: config.wardCode,
-            aggregation: config.aggregation
-        }
+    const data = await graphqlQuery(query, {
+        dateRange: {
+            startDate: config.startDate,
+            endDate: config.endDate
+        },
+        wardCode: config.wardCode,
+        aggregation: config.aggregation
     });
 
     const labels = data.current.map(d => d.date);
@@ -423,7 +432,7 @@ async function fetchInpatientData(config) {
 
 // 算定種データ取得
 async function fetchBillingData(config) {
-    const query = gql`
+    const query = `
         query GetBillingData($dateRange: DateRangeInput!, $billingType: String!, $aggregation: String) {
             current: billingData(dateRange: $dateRange, billingType: $billingType, aggregation: $aggregation) {
                 date
@@ -438,16 +447,13 @@ async function fetchBillingData(config) {
         }
     `;
 
-    const { data } = await client.query({
-        query,
-        variables: {
-            dateRange: {
-                startDate: config.startDate,
-                endDate: config.endDate
-            },
-            billingType: config.billingType,
-            aggregation: config.aggregation
-        }
+    const data = await graphqlQuery(query, {
+        dateRange: {
+            startDate: config.startDate,
+            endDate: config.endDate
+        },
+        billingType: config.billingType,
+        aggregation: config.aggregation
     });
 
     const labels = data.current.map(d => d.date);
