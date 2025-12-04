@@ -1,0 +1,54 @@
+# ダッシュボード初期設定
+# グラフエリアは3x3の9個（0-8の位置）
+
+graphs:
+  - position: 0
+    type: outpatient
+    ka_code: null  # null = 全科積上
+    view_type: stacked  # stacked or individual
+    time_range: monthly
+    
+  - position: 1
+    type: outpatient
+    ka_code: 1  # 内科
+    view_type: individual
+    time_range: daily
+    
+  - position: 2
+    type: outpatient
+    ka_code: 3  # 小児科
+    view_type: individual
+    time_range: daily
+    
+  - position: 3
+    type: inpatient
+    ward_code: null  # null = 全病棟積上
+    view_type: stacked
+    time_range: monthly
+    
+  - position: 4
+    type: inpatient
+    ward_code: 101  # 1病棟
+    view_type: individual
+    time_range: daily
+    
+  - position: 5
+    type: inpatient
+    ward_code: 201  # ICU
+    view_type: individual
+    time_range: daily
+    
+  - position: 6
+    type: billing
+    billing_type: 救急医療管理加算
+    time_range: monthly
+    
+  - position: 7
+    type: billing
+    billing_type: 薬剤管理指導料
+    time_range: monthly
+    
+  - position: 8
+    type: billing
+    billing_type: 栄養サポートチーム加算
+    time_range: monthly

@@ -1,0 +1,31 @@
+{
+  "name": "dashboard-system",
+  "version": "1.0.0",
+  "description": "Hospital Dashboard System with GraphQL Yoga and Apollo Client",
+  "type": "module",
+  "scripts": {
+    "server": "node server/index.js",
+    "client": "node server/static-server.js",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "init-db": "node database/init-db.js",
+    "seed-data": "node database/seed-data.js"
+  },
+  "keywords": [
+    "dashboard",
+    "graphql",
+    "hospital"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@apollo/client": "^3.8.8",
+    "better-sqlite3": "^9.2.2",
+    "chart.js": "^4.4.1",
+    "graphql": "^16.8.1",
+    "graphql-yoga": "^5.1.1",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>病院ダッシュボードシステム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 左側メニューエリア -->
+        <aside class="menu-area">
+            <h2>ダッシュボード設定</h2>
+            
+            <div class="menu-section">
+                <h3>表示種別</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="dataType" value="outpatient" checked>
+                        外来
+                    </label>
+                    <label>
+                        <input type="radio" name="dataType" value="inpatient">
+                        入院
+                    </label>
+                    <label>
+                        <input type="radio" name="dataType" value="billing">
+                        算定種
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-section" id="kaSection">
+                <h3>診療科</h3>
+                <div class="select-group">
+                    <select id="kaSelect">
+                        <option value="all">全数</option>
+                        <option value="stacked">全科積上</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="menu-section" id="wardSection" style="display: none;">
+                <h3>病棟</h3>
+                <div class="select-group">
+                    <select id="wardSelect">
+                        <option value="all">全数</option>
+                        <option value="stacked">全病棟積上</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="menu-section" id="visitTypeSection">
+                <h3>初診・再診</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="visitType" value="both" checked>
+                        両方
+                    </label>
+                    <label>
+                        <input type="radio" name="visitType" value="first">
+                        初診のみ
+                    </label>
+                    <label>
+                        <input type="radio" name="visitType" value="revisit">
+                        再診のみ
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-section" id="billingTypeSection" style="display: none;">
+                <h3>算定内容</h3>
+                <div class="select-group">
+                    <select id="billingTypeSelect">
+                        <option value="">選択してください</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <h3>集計期間</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="aggregation" value="daily" checked>
+                        日次
+                    </label>
+                    <label>
+                        <input type="radio" name="aggregation" value="monthly">
+                        月次
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <h3>期間選択</h3>
+                <div class="date-inputs">
+                    <label>
+                        開始日:
+                        <input type="date" id="startDate">
+                    </label>
+                    <label>
+                        終了日:
+                        <input type="date" id="endDate">
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <label>
+                    <input type="checkbox" id="showComparison" checked>
+                    前年比較表示
+                </label>
+            </div>
+
+            <button id="updateButton" class="update-button">選択グラフを更新</button>
+            <button id="loadConfigButton" class="load-config-button">初期設定を読込</button>
+
+            <div class="info-section">
+                <p><strong>選択中:</strong> <span id="selectedGraph">なし</span></p>
+            </div>
+        </aside>
+
+        <!-- グラフエリア（3x3） -->
+        <main class="graph-area">
+            <div class="graph-item" data-position="0">
+                <canvas id="chart-0"></canvas>
+            </div>
+            <div class="graph-item" data-position="1">
+                <canvas id="chart-1"></canvas>
+            </div>
+            <div class="graph-item" data-position="2">
+                <canvas id="chart-2"></canvas>
+            </div>
+            <div class="graph-item" data-position="3">
+                <canvas id="chart-3"></canvas>
+            </div>
+            <div class="graph-item" data-position="4">
+                <canvas id="chart-4"></canvas>
+            </div>
+            <div class="graph-item" data-position="5">
+                <canvas id="chart-5"></canvas>
+            </div>
+            <div class="graph-item" data-position="6">
+                <canvas id="chart-6"></canvas>
+            </div>
+            <div class="graph-item" data-position="7">
+                <canvas id="chart-7"></canvas>
+            </div>
+            <div class="graph-item" data-position="8">
+                <canvas id="chart-8"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <!-- ライブラリ読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@apollo/client@3.8.8/dist/apollo-client.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
