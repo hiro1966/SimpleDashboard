@@ -3,7 +3,7 @@ const { ApolloClient, InMemoryCache, gql, HttpLink } = window.apolloClient;
 
 const client = new ApolloClient({
     link: new HttpLink({
-        uri: 'https://4000-igl3xr8iirjtcmsw7yd85-b32ec7bb.sandbox.novita.ai/graphql',
+        uri: 'http://localhost:4000/graphql',
     }),
     cache: new InMemoryCache()
 });
@@ -92,14 +92,17 @@ function populateBillingTypeSelect() {
     });
 }
 
-// デフォルト日付設定（直近30日）
+// デフォルト日付設定（4月1日から前日まで）
 function setDefaultDates() {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const currentYear = today.getFullYear();
+    const startDate = new Date(currentYear, 3, 1); // 4月1日（月は0始まりなので3）
 
     document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
-    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+    document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
 }
 
 // イベントリスナー設定
@@ -499,10 +502,13 @@ async function loadDashboardConfig() {
         const yamlText = await response.text();
         const config = jsyaml.load(yamlText);
 
-        // デフォルト日付を設定（直近3ヶ月）
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 3);
+        // デフォルト日付を設定（4月1日から前日まで）
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        const currentYear = today.getFullYear();
+        const startDate = new Date(currentYear, 3, 1); // 4月1日
 
         for (const graphConfig of config.graphs) {
             const position = graphConfig.position;
@@ -511,7 +517,7 @@ async function loadDashboardConfig() {
                 type: graphConfig.type,
                 aggregation: graphConfig.time_range === 'monthly' ? 'monthly' : 'daily',
                 startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0],
+                endDate: yesterday.toISOString().split('T')[0],
                 showComparison: true
             };
 
