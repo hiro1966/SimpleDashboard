@@ -43,13 +43,7 @@ function getSeasonalFactor(dateStr) {
 const dates = generateDates(730);
 const kaCodes = [1, 2, 3, 4, 5, 6, 7];  // 有効な診療科
 const wardCodes = [101, 102, 103, 201];  // 有効な病棟
-const billingTypes = [
-    '救急医療管理加算',
-    '薬剤管理指導料',
-    '栄養サポートチーム加算',
-    '褥瘡対策加算',
-    '呼吸ケアチーム加算'
-];
+const billingCodes = ['B001', 'B008', 'B001-9', 'B005-6', 'B001-2-9'];  // 算定種コード
 
 // 外来データ生成
 console.log('外来データを生成中...');
@@ -73,7 +67,7 @@ for (const date of dates) {
 }
 console.log(`外来データ${outpatientCount}件を登録しました`);
 
-// 入院データ生成
+// 入院データ生成（新フィールド対応）
 console.log('入院データを生成中...');
 const wardCapacity = {
     101: 50,
@@ -82,41 +76,67 @@ const wardCapacity = {
     201: 10
 };
 
+// 病棟ごとの前日患者数を保持
+const previousDayPatients = {};
+wardCodes.forEach(code => {
+    previousDayPatients[code] = Math.round(wardCapacity[code] * 0.8); // 初期値80%稼働
+});
+
 let inpatientCount = 0;
 for (const date of dates) {
     const seasonal = getSeasonalFactor(date);
+    
     for (const wardCode of wardCodes) {
         const capacity = wardCapacity[wardCode];
-        // 病床稼働率70-95%程度
-        const occupancyRate = 0.70 + Math.random() * 0.25;
-        const patientCount = Math.round(capacity * occupancyRate * seasonal);
+        const prevPatients = previousDayPatients[wardCode];
+        
+        // 新入院・退院・転入・転出を計算
+        const baseNewAdmission = Math.round(capacity * 0.15 * seasonal); // 基本15%
+        const baseDischarge = Math.round(capacity * 0.14 * seasonal); // 基本14%
+        const baseTransferIn = randomInt(0, 2);
+        const baseTransferOut = randomInt(0, 2);
+        
+        const newAdmission = Math.max(0, baseNewAdmission + randomInt(-3, 3));
+        const discharge = Math.max(0, baseDischarge + randomInt(-3, 3));
+        const transferIn = baseTransferIn;
+        const transferOut = Math.min(prevPatients, baseTransferOut);
+        
+        // 当日患者数 = 前日患者数 + 新入院 + 転入 - 退院 - 転出
+        let patientCount = prevPatients + newAdmission + transferIn - discharge - transferOut;
+        patientCount = Math.max(0, Math.min(capacity, patientCount));
+        
+        // 診療科はランダムに選択（実際は病棟ごとに診療科が決まっているが簡略化）
+        const kaCode = kaCodes[randomInt(0, kaCodes.length - 1)];
         
         db.run(
-            'INSERT INTO inpatient_daily (date, ward_code, patient_count) VALUES (?, ?, ?)',
-            [date, wardCode, Math.min(capacity, Math.max(0, patientCount))]
+            'INSERT INTO inpatient_daily (date, ward_code, ka_code, patient_count, new_admission_count, discharge_count, transfer_in_count, transfer_out_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [date, wardCode, kaCode, patientCount, newAdmission, discharge, transferIn, transferOut]
         );
+        
+        // 次の日のために保存
+        previousDayPatients[wardCode] = patientCount;
         inpatientCount++;
     }
 }
 console.log(`入院データ${inpatientCount}件を登録しました`);
 
-// 算定種データ生成
+// 算定種データ生成（billing_code使用）
 console.log('算定種データを生成中...');
 let billingCount = 0;
 for (const date of dates) {
     const seasonal = getSeasonalFactor(date);
-    for (const billingType of billingTypes) {
+    for (const billingCode of billingCodes) {
         // 算定種別ごとに基本件数が異なる
         let baseCount;
-        if (billingType.includes('救急')) baseCount = 5;
-        else if (billingType.includes('薬剤')) baseCount = 20;
+        if (billingCode === 'B001') baseCount = 5;  // 救急
+        else if (billingCode === 'B008') baseCount = 20;  // 薬剤
         else baseCount = 10;
         
         const count = Math.round(randomInt(baseCount - 3, baseCount + 3) * seasonal);
         
         db.run(
-            'INSERT INTO billing_daily (date, billing_type, count) VALUES (?, ?, ?)',
-            [date, billingType, Math.max(0, count)]
+            'INSERT INTO billing_daily (date, billing_code, count) VALUES (?, ?, ?)',
+            [date, billingCode, Math.max(0, count)]
         );
         billingCount++;
     }

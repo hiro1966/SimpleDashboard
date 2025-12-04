@@ -53,6 +53,14 @@ const typeDefs = `
     valid: Boolean!
   }
 
+  type BillingMaster {
+    id: Int!
+    billingName: String!
+    billingCode: String!
+    seq: Int!
+    valid: Boolean!
+  }
+
   type OutpatientData {
     date: String!
     kaCode: Int!
@@ -65,15 +73,22 @@ const typeDefs = `
   type InpatientData {
     date: String!
     wardCode: Int!
+    kaCode: Int
     wardName: String
+    kaName: String
     patientCount: Int!
+    newAdmissionCount: Int!
+    dischargeCount: Int!
+    transferInCount: Int!
+    transferOutCount: Int!
     bedCount: Int
     occupancyRate: Float
   }
 
   type BillingData {
     date: String!
-    billingType: String!
+    billingCode: String!
+    billingName: String
     count: Int!
   }
 
@@ -91,7 +106,7 @@ const typeDefs = `
     # マスタデータ取得
     validKaMasters: [KaMaster!]!
     validWardMasters: [WardMaster!]!
-    allBillingTypes: [String!]!
+    validBillingMasters: [BillingMaster!]!
 
     # 外来データ取得
     outpatientData(
@@ -110,7 +125,7 @@ const typeDefs = `
     # 算定種データ取得
     billingData(
       dateRange: DateRangeInput!
-      billingType: String!
+      billingCode: String!
       aggregation: String
     ): [BillingData!]!
 
@@ -129,7 +144,7 @@ const typeDefs = `
 
     billingComparison(
       dateRange: DateRangeInput!
-      billingType: String!
+      billingCode: String!
       aggregation: String
     ): [BillingData!]!
   }
@@ -163,10 +178,16 @@ const resolvers = {
       }));
     },
 
-    // 全算定種別取得
-    allBillingTypes: () => {
-      const rows = query('SELECT DISTINCT billing_type FROM billing_daily ORDER BY billing_type');
-      return rows.map(row => row.billing_type);
+    // 有効な算定種マスタ取得
+    validBillingMasters: () => {
+      const rows = query('SELECT * FROM billing_master WHERE valid = 1 ORDER BY seq');
+      return rows.map(row => ({
+        id: row.id,
+        billingName: row.billing_name,
+        billingCode: row.billing_code,
+        seq: row.seq,
+        valid: row.valid === 1
+      }));
     },
 
     // 外来データ取得
@@ -246,10 +267,15 @@ const resolvers = {
             SELECT 
               strftime('%Y-%m', date) as month,
               ward_code,
-              CAST(AVG(patient_count) AS INTEGER) as patient_count
+              ka_code,
+              CAST(AVG(patient_count) AS INTEGER) as patient_count,
+              SUM(new_admission_count) as new_admission_count,
+              SUM(discharge_count) as discharge_count,
+              SUM(transfer_in_count) as transfer_in_count,
+              SUM(transfer_out_count) as transfer_out_count
             FROM inpatient_daily
             WHERE date BETWEEN ? AND ? AND ward_code = ?
-            GROUP BY month, ward_code
+            GROUP BY month, ward_code, ka_code
             ORDER BY month
           `;
           params.push(wardCode);
@@ -257,7 +283,11 @@ const resolvers = {
           sql = `
             SELECT 
               strftime('%Y-%m', date) as month,
-              CAST(AVG(patient_count) AS INTEGER) as patient_count
+              CAST(AVG(patient_count) AS INTEGER) as patient_count,
+              SUM(new_admission_count) as new_admission_count,
+              SUM(discharge_count) as discharge_count,
+              SUM(transfer_in_count) as transfer_in_count,
+              SUM(transfer_out_count) as transfer_out_count
             FROM inpatient_daily
             WHERE date BETWEEN ? AND ?
             GROUP BY month
@@ -267,7 +297,9 @@ const resolvers = {
       } else {
         if (wardCode) {
           sql = `
-            SELECT date, ward_code, patient_count
+            SELECT date, ward_code, ka_code, patient_count, 
+                   new_admission_count, discharge_count, 
+                   transfer_in_count, transfer_out_count
             FROM inpatient_daily
             WHERE date BETWEEN ? AND ? AND ward_code = ?
             ORDER BY date
@@ -277,7 +309,11 @@ const resolvers = {
           sql = `
             SELECT 
               date,
-              SUM(patient_count) as patient_count
+              SUM(patient_count) as patient_count,
+              SUM(new_admission_count) as new_admission_count,
+              SUM(discharge_count) as discharge_count,
+              SUM(transfer_in_count) as transfer_in_count,
+              SUM(transfer_out_count) as transfer_out_count
             FROM inpatient_daily
             WHERE date BETWEEN ? AND ?
             GROUP BY date
@@ -292,8 +328,14 @@ const resolvers = {
         const result = {
           date: row.month || row.date,
           wardCode: row.ward_code || 0,
+          kaCode: row.ka_code || null,
           wardName: null,
+          kaName: null,
           patientCount: row.patient_count,
+          newAdmissionCount: row.new_admission_count || 0,
+          dischargeCount: row.discharge_count || 0,
+          transferInCount: row.transfer_in_count || 0,
+          transferOutCount: row.transfer_out_count || 0,
           bedCount: null,
           occupancyRate: null
         };
@@ -311,27 +353,34 @@ const resolvers = {
     },
 
     // 算定種データ取得
-    billingData: (_, { dateRange, billingType, aggregation = 'daily' }) => {
+    billingData: (_, { dateRange, billingCode, aggregation = 'daily' }) => {
       let sql;
-      const params = [dateRange.startDate, dateRange.endDate, billingType];
+      const params = [dateRange.startDate, dateRange.endDate, billingCode];
 
       if (aggregation === 'monthly') {
         sql = `
           SELECT 
             strftime('%Y-%m', date) as month,
-            billing_type,
-            SUM(count) as count
-          FROM billing_daily
-          WHERE date BETWEEN ? AND ? AND billing_type = ?
-          GROUP BY month, billing_type
+            bd.billing_code,
+            bm.billing_name,
+            SUM(bd.count) as count
+          FROM billing_daily bd
+          LEFT JOIN billing_master bm ON bd.billing_code = bm.billing_code
+          WHERE bd.date BETWEEN ? AND ? AND bd.billing_code = ?
+          GROUP BY month, bd.billing_code, bm.billing_name
           ORDER BY month
         `;
       } else {
         sql = `
-          SELECT date, billing_type, count
-          FROM billing_daily
-          WHERE date BETWEEN ? AND ? AND billing_type = ?
-          ORDER BY date
+          SELECT 
+            bd.date,
+            bd.billing_code,
+            bm.billing_name,
+            bd.count
+          FROM billing_daily bd
+          LEFT JOIN billing_master bm ON bd.billing_code = bm.billing_code
+          WHERE bd.date BETWEEN ? AND ? AND bd.billing_code = ?
+          ORDER BY bd.date
         `;
       }
 
@@ -339,7 +388,8 @@ const resolvers = {
 
       return rows.map(row => ({
         date: row.month || row.date,
-        billingType: row.billing_type,
+        billingCode: row.billing_code,
+        billingName: row.billing_name,
         count: row.count
       }));
     },
@@ -373,7 +423,7 @@ const resolvers = {
       return resolvers.Query.inpatientData(_, { dateRange: lastYearRange, wardCode, aggregation });
     },
 
-    billingComparison: (_, { dateRange, billingType, aggregation = 'daily' }) => {
+    billingComparison: (_, { dateRange, billingCode, aggregation = 'daily' }) => {
       const startDate = new Date(dateRange.startDate);
       const endDate = new Date(dateRange.endDate);
       startDate.setFullYear(startDate.getFullYear() - 1);
@@ -384,7 +434,7 @@ const resolvers = {
         endDate: endDate.toISOString().split('T')[0]
       };
 
-      return resolvers.Query.billingData(_, { dateRange: lastYearRange, billingType, aggregation });
+      return resolvers.Query.billingData(_, { dateRange: lastYearRange, billingCode, aggregation });
     }
   }
 };

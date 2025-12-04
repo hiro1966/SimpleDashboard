@@ -28,7 +28,7 @@ const state = {
     charts: {},
     kaMasters: [],
     wardMasters: [],
-    billingTypes: [],
+    billingMasters: [],
     graphConfigs: {}
 };
 
@@ -55,7 +55,11 @@ async function loadMasterData() {
                     wardName
                     seq
                 }
-                allBillingTypes
+                validBillingMasters {
+                    billingCode
+                    billingName
+                    seq
+                }
             }
         `;
         
@@ -63,7 +67,7 @@ async function loadMasterData() {
         
         state.kaMasters = data.validKaMasters;
         state.wardMasters = data.validWardMasters;
-        state.billingTypes = data.allBillingTypes;
+        state.billingMasters = data.validBillingMasters;
 
         populateKaSelect();
         populateWardSelect();
@@ -99,10 +103,10 @@ function populateWardSelect() {
 // 算定種セレクトボックス設定
 function populateBillingTypeSelect() {
     const select = document.getElementById('billingTypeSelect');
-    state.billingTypes.forEach(type => {
+    state.billingMasters.forEach(billing => {
         const option = document.createElement('option');
-        option.value = type;
-        option.textContent = type;
+        option.value = billing.billingCode;
+        option.textContent = billing.billingName;
         select.appendChild(option);
     });
 }
@@ -213,12 +217,12 @@ async function updateSelectedGraph() {
         config.wardCode = wardSelect === 'all' || wardSelect === 'stacked' ? null : parseInt(wardSelect);
         config.stacked = wardSelect === 'stacked';
     } else if (dataType === 'billing') {
-        const billingType = document.getElementById('billingTypeSelect').value;
-        if (!billingType) {
+        const billingCode = document.getElementById('billingTypeSelect').value;
+        if (!billingCode) {
             alert('算定内容を選択してください');
             return;
         }
-        config.billingType = billingType;
+        config.billingCode = billingCode;
     }
 
     state.graphConfigs[state.selectedGraphPosition] = config;
@@ -433,14 +437,18 @@ async function fetchInpatientData(config) {
 // 算定種データ取得
 async function fetchBillingData(config) {
     const query = `
-        query GetBillingData($dateRange: DateRangeInput!, $billingType: String!, $aggregation: String) {
-            current: billingData(dateRange: $dateRange, billingType: $billingType, aggregation: $aggregation) {
+        query GetBillingData($dateRange: DateRangeInput!, $billingCode: String!, $aggregation: String) {
+            current: billingData(dateRange: $dateRange, billingCode: $billingCode, aggregation: $aggregation) {
                 date
+                billingCode
+                billingName
                 count
             }
             ${config.showComparison ? `
-            lastYear: billingComparison(dateRange: $dateRange, billingType: $billingType, aggregation: $aggregation) {
+            lastYear: billingComparison(dateRange: $dateRange, billingCode: $billingCode, aggregation: $aggregation) {
                 date
+                billingCode
+                billingName
                 count
             }
             ` : ''}
@@ -452,13 +460,14 @@ async function fetchBillingData(config) {
             startDate: config.startDate,
             endDate: config.endDate
         },
-        billingType: config.billingType,
+        billingCode: config.billingCode,
         aggregation: config.aggregation
     });
 
+    const billingName = data.current.length > 0 ? data.current[0].billingName : config.billingCode;
     const labels = data.current.map(d => d.date);
     const datasets = [{
-        label: `今年 ${config.billingType}`,
+        label: `今年 ${billingName}`,
         data: data.current.map(d => d.count),
         borderColor: 'rgb(230, 126, 34)',
         backgroundColor: 'rgba(230, 126, 34, 0.1)',
@@ -467,7 +476,7 @@ async function fetchBillingData(config) {
 
     if (config.showComparison && data.lastYear) {
         datasets.push({
-            label: `昨年 ${config.billingType}`,
+            label: `昨年 ${billingName}`,
             data: data.lastYear.map(d => d.count),
             borderColor: 'rgb(230, 126, 34)',
             backgroundColor: 'rgba(230, 126, 34, 0.1)',
@@ -485,7 +494,7 @@ async function fetchBillingData(config) {
             plugins: {
                 title: {
                     display: true,
-                    text: config.billingType
+                    text: billingName
                 },
                 legend: {
                     display: true,
@@ -535,7 +544,7 @@ async function loadDashboardConfig() {
                 renderConfig.wardCode = graphConfig.ward_code;
                 renderConfig.stacked = graphConfig.view_type === 'stacked';
             } else if (graphConfig.type === 'billing') {
-                renderConfig.billingType = graphConfig.billing_type;
+                renderConfig.billingCode = graphConfig.billing_code;
             }
 
             state.graphConfigs[position] = renderConfig;

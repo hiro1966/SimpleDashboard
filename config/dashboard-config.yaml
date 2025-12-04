@@ -40,15 +40,15 @@ graphs:
     
   - position: 6
     type: billing
-    billing_type: 救急医療管理加算
+    billing_code: B001
     time_range: monthly
     
   - position: 7
     type: billing
-    billing_type: 薬剤管理指導料
+    billing_code: B008
     time_range: monthly
     
   - position: 8
     type: billing
-    billing_type: 栄養サポートチーム加算
+    billing_code: B001-9
     time_range: monthly

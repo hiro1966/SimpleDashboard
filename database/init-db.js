@@ -64,6 +64,23 @@ for (const ward of wardMasterData) {
 }
 console.log(`病棟マスタに${wardMasterData.length}件登録しました`);
 
+// 算定種マスタの初期データ（新規追加）
+const billingMasterData = [
+    { billing_name: '救急医療管理加算', billing_code: 'B001', seq: 1, valid: 1 },
+    { billing_name: '薬剤管理指導料', billing_code: 'B008', seq: 2, valid: 1 },
+    { billing_name: '栄養サポートチーム加算', billing_code: 'B001-9', seq: 3, valid: 1 },
+    { billing_name: '褥瘡対策加算', billing_code: 'B005-6', seq: 4, valid: 1 },
+    { billing_name: '呼吸ケアチーム加算', billing_code: 'B001-2-9', seq: 5, valid: 1 }
+];
+
+for (const billing of billingMasterData) {
+    db.run(
+        'INSERT INTO billing_master (billing_name, billing_code, seq, valid) VALUES (?, ?, ?, ?)',
+        [billing.billing_name, billing.billing_code, billing.seq, billing.valid]
+    );
+}
+console.log(`算定種マスタに${billingMasterData.length}件登録しました`);
+
 // データベースをファイルに保存
 const data = db.export();
 const buffer = Buffer.from(data);
